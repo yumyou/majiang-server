@@ -2,13 +2,12 @@ FROM node:16-alpine as build-stage
 
 WORKDIR /admim
 
-COPY .npmrc package.json yarn.lock ./
-RUN --mount=type=cache,id=yarn-store,target=/root/.yarn-store \
-    yarn install --frozen-lockfile
+COPY .npmrc package.json package-lock.json ./
+RUN npm ci --only=production
 
 COPY . .
 ARG NODE_ENV=""
-RUN env ${NODE_ENV} yarn build:prod
+RUN env ${NODE_ENV} npm run build:prod
 
 ## -- stage: dist => nginx --
 FROM nginx:alpine

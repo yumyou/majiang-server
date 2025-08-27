@@ -36,7 +36,7 @@ module.exports = {
     proxy: {
       // detail: https://cli.vuejs.org/config/#devserver-proxy
       ['/proxy-api']: {
-        target: `http://localhost:48080`,
+        target: `http://localhost:8900`,
         // target: `http://api-dashboard.mazongjian.iocoder.cn`,
         changeOrigin: true,
         pathRewrite: {

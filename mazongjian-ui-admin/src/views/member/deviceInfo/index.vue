@@ -110,14 +110,21 @@
     <!-- 对话框(添加 / 修改) -->
     <el-dialog :title="title" :visible.sync="open" width="500px" v-dialogDrag append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="设备sn" prop="deviceSn">
+        <el-form-item label="设备sn" prop="deviceSn" v-if="form.type != 14">
           <el-input v-model="form.deviceSn" placeholder="请输入设备sn" />
         </el-form-item>
         <el-form-item label="设备类型" prop="type">
-          <el-select v-model="form.type" placeholder="请选择设备类型">
+          <el-select v-model="form.type" placeholder="请选择设备类型" @change="handleTypeChange">
             <el-option v-for="dict in this.getDictDatas(DICT_TYPE.MEMBER_DEVICE_TYPE)" :key="dict.value"
               :label="dict.label" :value="dict.value" />
           </el-select>
+        </el-form-item>
+        <!-- 电控类型特殊字段 -->
+        <el-form-item label="设备密匙" prop="productKey" v-if="form.type == 14">
+          <el-input v-model="form.productKey" placeholder="请输入设备密匙" />
+        </el-form-item>
+        <el-form-item label="设备名称" prop="deviceName" v-if="form.type == 14">
+          <el-input v-model="form.deviceName" placeholder="请输入设备名称" />
         </el-form-item>
         <el-form-item label="多房间共用设备" prop="type" label-width="150px">
           <el-radio-group v-model="form.share">
@@ -251,6 +258,8 @@ export default {
       // 表单参数
       form: {
         share: 0,
+        productKey: null,
+        deviceName: null,
       },
       bindForm: {
         deviceSn:null,
@@ -272,6 +281,8 @@ export default {
         deviceSn: [{ required: true, message: "设备sn不能为空", trigger: "blur" }],
         type: [{ required: true, message: "设备类型不能为空", trigger: "change" }],
         storeId: [{ required: true, message: "门店不能为空", trigger: "blur" }],
+        productKey: [{ required: true, message: "设备密匙不能为空", trigger: "blur" }],
+        deviceName: [{ required: true, message: "设备名称不能为空", trigger: "blur" }],
       },
       bindrules: {
         storeId: [{ required: true, message: "门店不能为空", trigger: "blur" }],
@@ -352,6 +363,8 @@ export default {
         deviceSn: undefined,
         type: undefined,
         share: 0,
+        productKey: null,
+        deviceName: null,
       };
       this.resetForm("form");
     },
@@ -453,13 +466,42 @@ export default {
     },
     /** 提交按钮 */
     submitForm() {
+      // 动态设置验证规则
+      const rules = { ...this.rules };
+      if (this.form.type == 14) {
+        // 电控类型：不需要deviceSn，需要productKey和deviceName
+        delete rules.deviceSn;
+        rules.productKey = [{ required: true, message: "设备密匙不能为空", trigger: "blur" }];
+        rules.deviceName = [{ required: true, message: "设备名称不能为空", trigger: "blur" }];
+      } else {
+        // 其他类型：需要deviceSn，不需要productKey和deviceName
+        rules.deviceSn = [{ required: true, message: "设备sn不能为空", trigger: "blur" }];
+        delete rules.productKey;
+        delete rules.deviceName;
+      }
+
+      // 临时设置验证规则
+      this.$refs["form"].rules = rules;
+
       this.$refs["form"].validate(valid => {
         if (!valid) {
           return;
         }
+
+        // 准备提交数据
+        const submitData = { ...this.form };
+        if (this.form.type == 14) {
+          // 电控类型：不传deviceSn
+          delete submitData.deviceSn;
+        } else {
+          // 其他类型：不传productKey和deviceName
+          delete submitData.productKey;
+          delete submitData.deviceName;
+        }
+
         // 修改的提交
         if (this.form.deviceId != null) {
-          updateDeviceInfo(this.form).then(response => {
+          updateDeviceInfo(submitData).then(response => {
             this.$modal.msgSuccess("修改成功");
             this.open = false;
             this.getList();
@@ -467,7 +509,7 @@ export default {
           return;
         }
         // 添加的提交
-        createDeviceInfo(this.form).then(response => {
+        createDeviceInfo(submitData).then(response => {
           this.$modal.msgSuccess("新增成功");
           this.open = false;
           this.getList();
@@ -572,6 +614,16 @@ export default {
       this.loadRoomList(row.storeId)
       this.bindStore = true;
       this.title = "修改设备绑定";
+    },
+    /** 设备类型变化处理 */
+    handleTypeChange(type) {
+      // 当选择电控类型时，清空deviceSn；当选择其他类型时，清空productKey和deviceName
+      if (type == 14) {
+        this.form.deviceSn = null;
+      } else {
+        this.form.productKey = null;
+        this.form.deviceName = null;
+      }
     }
   }
 };

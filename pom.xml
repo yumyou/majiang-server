@@ -109,14 +109,14 @@
             <url>https://jitpack.io</url>
         </repository>
         <repository>
-            <id>huaweicloud</id>
-            <name>huawei</name>
-            <url>https://mirrors.huaweicloud.com/repository/maven/</url>
-        </repository>
-        <repository>
             <id>aliyunmaven</id>
             <name>aliyun</name>
             <url>https://maven.aliyun.com/repository/public</url>
+        </repository>
+        <repository>
+            <id>central</id>
+            <name>Maven Central</name>
+            <url>https://repo1.maven.org/maven2/</url>
         </repository>
     </repositories>
 

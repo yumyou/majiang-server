@@ -97,6 +97,11 @@ public interface AppUserService {
     void updateUserMobile(Long userId, AppUserUpdateMobileReqVO reqVO);
 
     /**
+     * 直接修改手机（免验证码，用于内测/管理端）
+     */
+    void updateUserMobileDirect(Long userId, String mobile);
+
+    /**
      * 判断密码是否匹配
      *
      * @param rawPassword     未加密的密码

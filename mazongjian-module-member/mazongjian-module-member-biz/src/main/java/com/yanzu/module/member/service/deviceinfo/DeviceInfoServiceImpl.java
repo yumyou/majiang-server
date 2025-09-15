@@ -1,5 +1,10 @@
 package com.yanzu.module.member.service.deviceinfo;
 
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
+import cn.hutool.crypto.SecureUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yanzu.framework.common.pojo.PageResult;
@@ -14,9 +19,12 @@ import com.yanzu.module.member.service.iot.device.IotDeviceConfigWifiReqVO;
 import com.yanzu.module.member.service.iot.device.IotDeviceContrlReqVO;
 import com.yanzu.module.member.service.iot.device.IotDeviceSetAutoLockReqVO;
 import com.yanzu.module.member.service.storeinfo.StoreInfoService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 
 import javax.annotation.Resource;
@@ -36,6 +44,7 @@ import static com.yanzu.module.member.enums.ErrorCodeConstants.*;
  */
 @Service
 @Validated
+@Slf4j
 public class DeviceInfoServiceImpl implements DeviceInfoService {
 
     @Resource
@@ -46,6 +55,15 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
 
     @Resource
     private StoreInfoService storeInfoService;
+
+    @Value("${sciener.clientId:}")
+    private String scienerClientId;
+    @Value("${sciener.clientSecret:}")
+    private String scienerClientSecret;
+    @Value("${sciener.username:}")
+    private String scienerUsername;
+    @Value("${sciener.password:}")
+    private String scienerPasswordMd5;
 
 
     @Override
@@ -76,13 +94,74 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
                     break;
             }
         }
-        //先在iot平台绑定设备
-        String data = iotDeviceService.bind(createReqVO.getDeviceSn());
+        String data = null;
+        // 与 App 端保持一致：
+        if (createReqVO.getType() != null && createReqVO.getType().intValue() == 5) {
+            // 门锁：获取锁信息（Sciener）
+            if (StringUtils.hasText(scienerClientId) && StringUtils.hasText(scienerClientSecret)
+                    && StringUtils.hasText(scienerUsername) && StringUtils.hasText(scienerPasswordMd5)) {
+                String tokenResp = HttpRequest.post("https://cnapi.sciener.com/oauth2/token")
+                        .form("clientId", scienerClientId)
+                        .form("clientSecret", scienerClientSecret)
+                        .form("username", scienerUsername)
+                        .form("password", normalizeScienerPassword(scienerPasswordMd5))
+                        .execute()
+                        .body();
+                log.info("[Admin] Sciener token resp: {}", tokenResp);
+                if (!StringUtils.hasText(tokenResp)) {
+                    throw exception(DEVICE_IOT_OP_ERROR, "Sciener获取token返回为空");
+                }
+                JSONObject tokenJson = JSONUtil.parseObj(tokenResp);
+                String accessToken = tokenJson.getStr("access_token");
+                if (!StringUtils.hasText(accessToken)) {
+                    throw exception(DEVICE_IOT_OP_ERROR, "Sciener获取token失败:" + tokenResp);
+                }
+                String url = String.format("https://cnapi.sciener.com/v3/lock/detail?clientId=%s&accessToken=%s&lockId=%s&date=%d",
+                        scienerClientId, accessToken, createReqVO.getDeviceSn(), System.currentTimeMillis());
+                String detailResp = HttpUtil.get(url);
+                log.info("[Admin] Sciener lock detail resp: {}", detailResp);
+                if (!StringUtils.hasText(detailResp)) {
+                    throw exception(DEVICE_IOT_OP_ERROR, "Sciener获取锁详情返回为空");
+                }
+                data = detailResp;
+            } else {
+                throw exception(DEVICE_IOT_OP_ERROR, "Sciener配置不完整，请设置sciener.clientId/clientSecret/username/password");
+            }
+        } else if (createReqVO.getType() != null && createReqVO.getType().intValue() == 14) {
+            // 电控：保存 productKey + deviceName
+            com.alibaba.fastjson.JSONObject obj = new com.alibaba.fastjson.JSONObject();
+            obj.put("productKey", createReqVO.getDeviceSn());
+            if (createReqVO.getDeviceName() != null && createReqVO.getDeviceName().length() > 0) {
+                obj.put("deviceName", createReqVO.getDeviceName());
+            }
+            data = obj.toJSONString();
+        } else {
+            // 其它类型：与 App 一致，暂不调用 iot 绑定
+            data = null;
+        }
+
+        if (createReqVO.getType() != null && (createReqVO.getType().intValue() == 5 || createReqVO.getType().intValue() == 14)) {
+            if (!StringUtils.hasText(data)) {
+                throw exception(DEVICE_IOT_OP_ERROR, "设备数据为空，添加失败");
+            }
+        }
         // 插入
         DeviceInfoDO deviceInfo = DeviceInfoConvert.INSTANCE.convert(createReqVO);
         deviceInfo.setDeviceData(data);
         deviceInfoMapper.insert(deviceInfo);
 
+    }
+
+    private String normalizeScienerPassword(String configured) {
+        if (configured == null) {
+            return null;
+        }
+        String trimmed = configured.trim();
+        String lower = trimmed.toLowerCase();
+        if (lower.matches("^[a-f0-9]{32}$")) {
+            return lower;
+        }
+        return SecureUtil.md5(trimmed).toLowerCase();
     }
 
 
@@ -92,15 +171,22 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
         DeviceInfoDO deviceInfoDO = deviceInfoMapper.selectById(id);
         //只能操作自己的设备
         if (!ObjectUtils.isEmpty(deviceInfoDO) && deviceInfoDO.getCreator().equals(String.valueOf(getLoginUserId()))) {
-            //如果是多房间共用  只有全部删除绑定关系时才去解绑
-            if (deviceInfoDO.getShare()) {
-                if (deviceInfoMapper.countBySN(deviceInfoDO.getDeviceSn()) == 1) {
-                    //解绑
-                    iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+            // 与 app 端一致：仅对非门锁/电控尝试物联网解绑；失败记录日志并忽略
+            boolean needIotUnbind = deviceInfoDO.getType() != null
+                    && deviceInfoDO.getType().intValue() != 5
+                    && deviceInfoDO.getType().intValue() != 14;
+            if (needIotUnbind) {
+                try {
+                    if (deviceInfoDO.getShare()) {
+                        if (deviceInfoMapper.countBySN(deviceInfoDO.getDeviceSn()) == 1) {
+                            iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+                        }
+                    } else {
+                        iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+                    }
+                } catch (Exception ex) {
+                    log.warn("[Admin] 设备解绑失败，忽略继续删除。sn:{} err:{}", deviceInfoDO.getDeviceSn(), ex.getMessage());
                 }
-            } else {
-                //解绑
-                iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
             }
             // 删除
             deviceInfoMapper.deleteById(id);

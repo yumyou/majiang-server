@@ -31,4 +31,7 @@ public class DeviceInfoCreateReqVO extends DeviceInfoBaseVO {
     @Schema(description = "是否多房间共享设备")
     private Boolean share;
 
+    @Schema(description = "设备名称，仅type=14电控时使用")
+    private String deviceName;
+
 }

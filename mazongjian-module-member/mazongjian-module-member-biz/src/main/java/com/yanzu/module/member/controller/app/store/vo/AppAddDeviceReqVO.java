@@ -27,5 +27,8 @@ public class AppAddDeviceReqVO {
     @Schema(description = "是否共用设备")
     private Boolean shareDevice;
 
+    @Schema(description = "设备名称")
+    private String deviceName;
+
 
 }

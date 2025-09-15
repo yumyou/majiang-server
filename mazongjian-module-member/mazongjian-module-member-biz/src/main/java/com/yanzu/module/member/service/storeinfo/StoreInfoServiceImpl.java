@@ -3,6 +3,11 @@ package com.yanzu.module.member.service.storeinfo;
 import cn.binarywang.wx.miniapp.api.WxMaQrcodeService;
 import cn.binarywang.wx.miniapp.api.WxMaService;
 import cn.hutool.core.io.IoUtil;
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
+import cn.hutool.crypto.SecureUtil;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -139,6 +144,15 @@ public class StoreInfoServiceImpl implements StoreInfoService {
 
     private static final String MINIAPP_IMG_URL = "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid='%s'&secret='%s'";
 
+    @Value("${sciener.clientId:}")
+    private String scienerClientId;
+    @Value("${sciener.clientSecret:}")
+    private String scienerClientSecret;
+    @Value("${sciener.username:}")
+    private String scienerUsername;
+    @Value("${sciener.password:}")
+    private String scienerPasswordMd5;
+
     @Override
     public PageResult<AppStoreAdminRespVO> getPageList(AppStoreAdminReqVO reqVO) {
         reqVO.setUserId(getLoginUserId());
@@ -244,11 +258,11 @@ public class StoreInfoServiceImpl implements StoreInfoService {
             //默认设置音量为2
             reqVO.setYunlabaSound(2);
         }
-        if (!StringUtils.isEmpty(reqVO.getBanTimeStart()) && StringUtils.isEmpty(reqVO.getBanTimeEnd())) {
+        if (StringUtils.hasText(reqVO.getBanTimeStart()) && !StringUtils.hasText(reqVO.getBanTimeEnd())) {
             //任意一个为空都不行
             throw exception(ROOM_BAN_TIME_ERROR);
 
-        } else if (!StringUtils.isEmpty(reqVO.getBanTimeEnd()) && StringUtils.isEmpty(reqVO.getBanTimeStart())) {
+        } else if (StringUtils.hasText(reqVO.getBanTimeEnd()) && !StringUtils.hasText(reqVO.getBanTimeStart())) {
             //任意一个为空都不行
             throw exception(ROOM_BAN_TIME_ERROR);
         }
@@ -441,7 +455,7 @@ public class StoreInfoServiceImpl implements StoreInfoService {
         StoreInfoDO updateObj = StoreInfoConvert.INSTANCE.convert(updateReqVO);
         storeInfoMapper.updateById(updateObj);
         //更新美团uuid
-        if (!StringUtils.isEmpty(updateReqVO.getMeituanOpenShopUuid())) {
+        if (StringUtils.hasText(updateReqVO.getMeituanOpenShopUuid())) {
             storeMeituanInfoMapper.update(new StoreMeituanInfoDO().setOpenShopUuid(updateReqVO.getMeituanOpenShopUuid()), new LambdaUpdateWrapper<StoreMeituanInfoDO>().eq(StoreMeituanInfoDO::getStoreId, updateReqVO.getStoreId()));
         }
     }
@@ -747,8 +761,65 @@ public class StoreInfoServiceImpl implements StoreInfoService {
                     break;
             }
         }
+        String data = null;
+        if (reqVO.getDeviceType() != null && reqVO.getDeviceType().intValue() == 5) {
+            // 门锁：获取锁信息（Sciener）
+            if (StringUtils.hasText(scienerClientId) && StringUtils.hasText(scienerClientSecret)
+                    && StringUtils.hasText(scienerUsername) && StringUtils.hasText(scienerPasswordMd5)) {
+                try {
+                    String tokenResp = HttpRequest.post("https://cnapi.sciener.com/oauth2/token")
+                            .form("clientId", scienerClientId)
+                            .form("clientSecret", scienerClientSecret)
+                            .form("username", scienerUsername)
+                            .form("password", normalizeScienerPassword(scienerPasswordMd5))
+                            .execute()
+                            .body();
+                    log.info("Sciener token resp: {}", tokenResp);
+                    if (!StringUtils.hasText(tokenResp)) {
+                        throw exception(DEVICE_IOT_OP_ERROR, "Sciener获取token返回为空");
+                    }
+                    JSONObject tokenJson = JSONUtil.parseObj(tokenResp);
+                    String accessToken = tokenJson.getStr("access_token");
+                    if (!StringUtils.hasText(accessToken)) {
+                        throw exception(DEVICE_IOT_OP_ERROR, "Sciener获取token失败:" + tokenResp);
+                    }
+                    String url = String.format("https://cnapi.sciener.com/v3/lock/detail?clientId=%s&accessToken=%s&lockId=%s&date=%d",
+                            scienerClientId,
+                            accessToken,
+                            reqVO.getDeviceSn(),
+                            System.currentTimeMillis());
+                    String detailResp = HttpUtil.get(url);
+                    log.info("Sciener lock detail resp: {}", detailResp);
+                    if (!StringUtils.hasText(detailResp)) {
+                        throw exception(DEVICE_IOT_OP_ERROR, "Sciener获取锁详情返回为空");
+                    }
+                    data = detailResp;
+                } catch (Exception e) {
+                    throw exception(DEVICE_IOT_OP_ERROR, "Sciener接口异常:" + e.getMessage());
+                }
+            } else {
+                throw exception(DEVICE_IOT_OP_ERROR, "Sciener配置不完整，请设置sciener.clientId/clientSecret/username/password");
+            }
+        } else if (reqVO.getDeviceType() != null && reqVO.getDeviceType().intValue() == 14) {
+            // 电控：将 deviceSn 与 deviceName 组成对象存入 data
+            JSONObject obj = new JSONObject();
+            obj.putOnce("productKey", reqVO.getDeviceSn());
+            if (StringUtils.hasText(reqVO.getDeviceName())) {
+                obj.putOnce("deviceName", reqVO.getDeviceName());
+            }
+            data = obj.toString();
+        }
+
+        // 需要设备数据的类型（5=门锁，14=电控）必须校验 data 非空
+        if (reqVO.getDeviceType() != null && (reqVO.getDeviceType().intValue() == 5 || reqVO.getDeviceType().intValue() == 14)) {
+            if (!StringUtils.hasText(data)) {
+                throw exception(DEVICE_IOT_OP_ERROR, "设备数据为空，添加失败");
+            }
+        }
+
+
         //先在iot平台绑定设备
-        String data = iotDeviceService.bind(reqVO.getDeviceSn());
+        // String data = iotDeviceService.bind(reqVO.getDeviceSn());
         // 插入
         DeviceInfoDO deviceInfo = new DeviceInfoDO()
                 .setDeviceSn(reqVO.getDeviceSn())
@@ -760,6 +831,18 @@ public class StoreInfoServiceImpl implements StoreInfoService {
         deviceInfoMapper.insert(deviceInfo);
     }
 
+    private String normalizeScienerPassword(String configured) {
+        if (configured == null) {
+            return null;
+        }
+        String trimmed = configured.trim();
+        String lower = trimmed.toLowerCase();
+        if (lower.matches("^[a-f0-9]{32}$")) {
+            return lower;
+        }
+        return SecureUtil.md5(trimmed).toLowerCase();
+    }
+
     @Override
     @Transactional
     public void delDevice(Long deviceId) {
@@ -768,14 +851,22 @@ public class StoreInfoServiceImpl implements StoreInfoService {
             //避免操作失误 仅允许超管删除
             checkPermisson(deviceInfoDO.getStoreId(), getLoginUserId(), getLoginUserType(), AppEnum.member_user_type.BOSS.getValue());
             //如果是多房间共用  只有全部删除绑定关系时才去解绑
-            if (deviceInfoDO.getShare()) {
-                if (deviceInfoMapper.countBySN(deviceInfoDO.getDeviceSn()) == 1) {
-                    //解绑
-                    iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+            // 仅对非门锁/电控设备尝试物联网解绑；失败时记录日志并忽略
+            boolean needIotUnbind = deviceInfoDO.getType() != null
+                    && deviceInfoDO.getType().intValue() != 5
+                    && deviceInfoDO.getType().intValue() != 14;
+            if (needIotUnbind) {
+                try {
+                    if (deviceInfoDO.getShare()) {
+                        if (deviceInfoMapper.countBySN(deviceInfoDO.getDeviceSn()) == 1) {
+                            iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+                        }
+                    } else {
+                        iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+                    }
+                } catch (Exception ex) {
+                    log.warn("设备解绑失败，忽略继续删除。sn:{} err:{}", deviceInfoDO.getDeviceSn(), ex.getMessage());
                 }
-            } else {
-                //解绑
-                iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
             }
             //删除
             deviceInfoMapper.deleteById(deviceId);

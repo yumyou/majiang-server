@@ -12,6 +12,7 @@ import com.yanzu.module.member.controller.admin.facerecord.vo.FaceRecordRespVO;
 import com.yanzu.module.member.controller.app.order.vo.ControlKTReqVO;
 import com.yanzu.module.member.controller.app.store.vo.*;
 import com.yanzu.module.member.service.device.DeviceService;
+import com.yanzu.module.member.service.deviceinfo.DeviceInfoService;
 import com.yanzu.module.member.service.faceblacklist.FaceBlacklistService;
 import com.yanzu.module.member.service.facerecord.FaceRecordService;
 import com.yanzu.module.member.service.storeinfo.StoreInfoService;
@@ -53,6 +54,9 @@ public class AppStoreController {
 
     @Resource
     private FaceBlacklistService faceBlacklistService;
+
+    @Resource
+    private DeviceInfoService deviceInfoService;
 
     @PostMapping("/getPageList")
     @Operation(summary = "获取门店列表")
@@ -159,6 +163,15 @@ public class AppStoreController {
     @Idempotent(timeout = 3, timeUnit = TimeUnit.SECONDS, message = "你的点击太快啦~")
     public CommonResult<Boolean> delDevice(@PathVariable("deviceId") Long deviceId) {
         storeInfoService.delDevice(deviceId);
+        return success(true);
+    }
+
+    @PostMapping("/bindDevice")
+    @Operation(summary = "设备绑定门店/房间")
+    @PreAuthenticated
+    @Idempotent(timeout = 3, timeUnit = TimeUnit.SECONDS, message = "你的点击太快啦~")
+    public CommonResult<Boolean> bindDevice(@RequestBody @Valid com.yanzu.module.member.controller.admin.deviceinfo.vo.DeviceInfoBindReqVO reqVO) {
+        deviceInfoService.bind(reqVO);
         return success(true);
     }
 

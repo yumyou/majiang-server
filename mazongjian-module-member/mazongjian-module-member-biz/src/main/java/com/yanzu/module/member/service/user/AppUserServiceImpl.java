@@ -237,6 +237,15 @@ public class AppUserServiceImpl implements AppUserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateUserMobileDirect(Long userId, String mobile) {
+        // 检测用户是否存在
+        checkUserExists(userId);
+        // 直接更新手机号（无验证码校验）
+        memberUserMapper.updateById(MemberUserDO.builder().id(userId).mobile(mobile).build());
+    }
+
+    @Override
     public boolean isPasswordMatch(String rawPassword, String encodedPassword) {
         return passwordEncoder.matches(rawPassword, encodedPassword);
     }

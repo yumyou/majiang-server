@@ -194,7 +194,11 @@ public class AppStoreController {
     @Idempotent(timeout = 3, timeUnit = TimeUnit.SECONDS, message = "你的点击太快啦~")
     public CommonResult<Boolean> openRoomDoor(@PathVariable("roomId") Long roomId) {
         //1用户开门 2管理员开门 3保洁开门
-        deviceService.openRoomDoor(getLoginUserId(), null, roomId, 2);
+        try {
+            deviceService.openRoomDoor(getLoginUserId(), null, roomId, 2);
+        } catch (Exception e) {
+            return CommonResult.error(500, e.getMessage());
+        }
         return success(true);
     }
 
@@ -206,8 +210,12 @@ public class AppStoreController {
     @Idempotent(timeout = 3, timeUnit = TimeUnit.SECONDS, message = "你的点击太快啦~")
     public CommonResult<Boolean> openRoomLock(@PathVariable("roomId") Long roomId) {
         //1用户开门 2管理员开门 3保洁开门
-        deviceService.openRoomBlueLock(getLoginUserId(), null, roomId, 2);
-        return success(true);
+        try {
+            deviceService.openRoomBlueLock(getLoginUserId(), null, roomId, 2);
+        } catch (Exception e) {
+            return CommonResult.error(500, e.getMessage());
+        }
+        return success(false);
     }
 
     @PostMapping("/closeRoomDoor/{roomId}")

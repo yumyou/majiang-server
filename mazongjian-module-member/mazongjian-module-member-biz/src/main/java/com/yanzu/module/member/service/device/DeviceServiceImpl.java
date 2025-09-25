@@ -1,9 +1,6 @@
 package com.yanzu.module.member.service.device;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.yanzu.module.member.controller.app.order.vo.ControlKTReqVO;
-import com.yanzu.module.member.controller.app.store.vo.AppAddDeviceReqVO;
-import com.yanzu.module.member.controller.app.store.vo.AppRoomListVO;
 import com.yanzu.module.member.dal.dataobject.clearinfo.ClearInfoDO;
 import com.yanzu.module.member.dal.dataobject.deviceinfo.DeviceInfoDO;
 import com.yanzu.module.member.dal.dataobject.deviceuseinfo.DeviceUseInfoDO;
@@ -16,13 +13,11 @@ import com.yanzu.module.member.dal.mysql.roominfo.RoomInfoMapper;
 import com.yanzu.module.member.dal.mysql.storeinfo.StoreInfoMapper;
 import com.yanzu.module.member.dal.mysql.storesound.StoreSoundInfoMapper;
 import com.yanzu.module.member.service.iot.IotDeviceService;
+import com.yanzu.module.member.service.iot.PythonIotService;
 import com.yanzu.module.member.service.iot.device.IotControlKTReqVO;
-import com.yanzu.module.member.service.iot.device.IotDeviceAddBlacklistReqVO;
 import com.yanzu.module.member.service.iot.device.IotDeviceBaseVO;
 import com.yanzu.module.member.service.iot.device.IotDeviceContrlReqVO;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -68,6 +63,8 @@ public class DeviceServiceImpl implements DeviceService {
     @Resource
     private IotDeviceService iotDeviceService;
 
+    @Resource
+    private PythonIotService pythonIotService;
 
     @Resource
     private StoreSoundInfoMapper storeSoundInfoMapper;
@@ -188,11 +185,10 @@ public class DeviceServiceImpl implements DeviceService {
 
 
     /**
-     * 开房间门
+     * 通电
      *
      * @param roomId
      */
-    @Async
     protected void openRoomDoor(Long storeId, Long roomId) {
         //开门 等于是开门+通电 把房间内所有设备操作一遍
         List<DeviceInfoDO> deviceList = deviceInfoMapper.getByRoomId(roomId);
@@ -200,45 +196,51 @@ public class DeviceServiceImpl implements DeviceService {
             //1=门禁 2=空开 3=云喇叭 4=灯具 5=密码锁 6=网关 7=插座 8=锁球器控制器（12V） 9=人脸门禁机  10=智能语音喇叭 11=二维码识别器 12=红外控制器 13=三路控制器
             deviceList.forEach(x -> {
                 switch (x.getType().intValue()) {
-                    case 1:
-                    case 9:
-                        openDoor(x.getDeviceSn(), storeId);
-                        break;
-                    case 2:
-                    case 4:
-                    case 7:
-                    case 8:
-                        opSwitch(x.getDeviceSn(), "on");
-                        break;
-                    case 5:
-                        //如果有网关 就尝试网关开锁
-                        if (countGateway(storeId) > 0) {
-                            openDoor(x.getDeviceSn(), storeId);
-                        }
-                        break;
-                    case 6:
-                        break;
-                    case 13:
-                        //三路控制器 开的时候三路全开 注意判断是否需要门禁常开
-                        boolean orderDoorOpen = storeInfoMapper.getOrderDoorOpen(storeId);
-                        IotDeviceBaseVO<IotDeviceContrlReqVO> reqVO = new IotDeviceBaseVO();
-                        List<IotDeviceContrlReqVO> param = new ArrayList<>(3);
-                        param.add(new IotDeviceContrlReqVO().setOutlet(0).setCmd("on"));
-                        param.add(new IotDeviceContrlReqVO().setOutlet(1).setCmd("on"));
-                        //第三路就是门禁用
-                        param.add(new IotDeviceContrlReqVO().setOutlet(2).setCmd(orderDoorOpen ? "on" : "pulse"));
-                        reqVO.setDeviceSn(x.getDeviceSn()).setParams(param);
-                        boolean flag = iotDeviceService.control(reqVO);
-                        if (!flag) {
-                            throw exception(DEVICE_OPRATION_ERROR);
-                        }
+                    // case 1:
+                    // case 9:
+                    //     openDoor(x.getDeviceSn(), storeId);
+                    //     break;
+                    // case 2:
+                    // case 4:
+                    // case 7:
+                    // case 8:
+                    //     opSwitch(x.getDeviceSn(), "on");
+                    //     break;
+                    // case 5:
+                    //     //如果有网关 就尝试网关开锁
+                    //     if (countGateway(storeId) > 0) {
+                    //         openDoor(x.getDeviceSn(), storeId);
+                    //     }
+                    //     break;
+                    // case 6:
+                    //     break;
+                    // case 13:
+                    //     //三路控制器 开的时候三路全开 注意判断是否需要门禁常开
+                    //     boolean orderDoorOpen = storeInfoMapper.getOrderDoorOpen(storeId);
+                    //     IotDeviceBaseVO<IotDeviceContrlReqVO> reqVO = new IotDeviceBaseVO();
+                    //     List<IotDeviceContrlReqVO> param = new ArrayList<>(3);
+                    //     param.add(new IotDeviceContrlReqVO().setOutlet(0).setCmd("on"));
+                    //     param.add(new IotDeviceContrlReqVO().setOutlet(1).setCmd("on"));
+                    //     //第三路就是门禁用
+                    //     param.add(new IotDeviceContrlReqVO().setOutlet(2).setCmd(orderDoorOpen ? "on" : "pulse"));
+                    //     reqVO.setDeviceSn(x.getDeviceSn()).setParams(param);
+                    //     boolean flag = iotDeviceService.control(reqVO);
+                    //     if (!flag) {
+                    //         throw exception(DEVICE_OPRATION_ERROR);
+                    //     }
+                    //     break;
+                    case 14:
+                        // 使用Python IoT服务控制设备
+                        controlDeviceWithPythonIot(x, storeId, "1");
                         break;
                 }
 
             });
+        }else{
+            throw exception(DEVICE_OPRATION_ERROR,"房间内没有绑定电控设备");
         }
     }
-
+    
     /**
      * 打开开关
      *
@@ -274,36 +276,39 @@ public class DeviceServiceImpl implements DeviceService {
                     }
                 }
                 switch (x.getType().intValue()) {
-                    case 1:
-                    case 9:
-                        closeDoor(x.getDeviceSn());
+                    // case 1:
+                    // case 9:
+                    //     closeDoor(x.getDeviceSn());
+                    //     break;
+                    // case 2:
+                    // case 7:
+                    // case 8:
+                    //     opSwitch(x.getDeviceSn(), "off");
+                    //     break;
+                    // case 5:
+                    //     //如果有网关 就尝试网关关锁
+                    //     if (countGateway(storeId) > 0) {
+                    //         closeDoor(x.getDeviceSn());
+                    //     }
+                    //     break;
+                    // case 6:
+                    //     break;
+                    // case 13:
+                    //     //三路控制器 关的时候先不关灯
+                    //     IotDeviceBaseVO<IotDeviceContrlReqVO> reqVO = new IotDeviceBaseVO();
+                    //     List<IotDeviceContrlReqVO> param = new ArrayList<>(2);
+                    //     param.add(new IotDeviceContrlReqVO().setOutlet(0).setCmd("off"));
+                    //     param.add(new IotDeviceContrlReqVO().setOutlet(2).setCmd("off"));
+                    //     reqVO.setDeviceSn(x.getDeviceSn()).setParams(param);
+                    //     boolean flag = iotDeviceService.control(reqVO);
+                    //     if (!flag) {
+                    //         throw exception(DEVICE_OPRATION_ERROR);
+                    //     }
+                    //     break;
+                    case 14:
+                        // 使用Python IoT服务控制设备
+                        controlDeviceWithPythonIot(x, storeId, "0");
                         break;
-                    case 2:
-                    case 7:
-                    case 8:
-                        opSwitch(x.getDeviceSn(), "off");
-                        break;
-                    case 5:
-                        //如果有网关 就尝试网关关锁
-                        if (countGateway(storeId) > 0) {
-                            closeDoor(x.getDeviceSn());
-                        }
-                        break;
-                    case 6:
-                        break;
-                    case 13:
-                        //三路控制器 关的时候先不关灯
-                        IotDeviceBaseVO<IotDeviceContrlReqVO> reqVO = new IotDeviceBaseVO();
-                        List<IotDeviceContrlReqVO> param = new ArrayList<>(2);
-                        param.add(new IotDeviceContrlReqVO().setOutlet(0).setCmd("off"));
-                        param.add(new IotDeviceContrlReqVO().setOutlet(2).setCmd("off"));
-                        reqVO.setDeviceSn(x.getDeviceSn()).setParams(param);
-                        boolean flag = iotDeviceService.control(reqVO);
-                        if (!flag) {
-                            throw exception(DEVICE_OPRATION_ERROR);
-                        }
-                        break;
-
                 }
             });
         }
@@ -532,6 +537,46 @@ public class DeviceServiceImpl implements DeviceService {
             });
         }
     }
+
+
+    /**
+     * 使用Python IoT服务控制设备（类型14）
+     * 
+     * @param deviceInfo 设备信息
+     * @param storeId 门店ID
+     */
+    private void controlDeviceWithPythonIot(DeviceInfoDO deviceInfo, Long storeId, String controlValue) {
+        
+            // 解析设备数据获取productKey、deviceName和identifier
+            String deviceData = deviceInfo.getDeviceData();
+            if (ObjectUtils.isEmpty(deviceData)) {
+                log.error("设备数据为空，无法控制设备: deviceSn={}", deviceInfo.getDeviceSn());
+                throw exception(DEVICE_OPRATION_ERROR, "设备数据为空");
+            }
+
+            com.alibaba.fastjson.JSONObject dataObj = com.alibaba.fastjson.JSONObject.parseObject(deviceData);
+            String productKey = dataObj.getString("productKey");
+            String deviceName = dataObj.getString("deviceName");
+            String identifier = dataObj.getString("identifier");
+
+            if (ObjectUtils.isEmpty(productKey) || ObjectUtils.isEmpty(deviceName) || ObjectUtils.isEmpty(identifier)) {
+                log.error("设备配置信息不完整: productKey={}, deviceName={}, identifier={}", 
+                        productKey, deviceName, identifier);
+                throw exception(DEVICE_OPRATION_ERROR, "设备配置信息不完整");
+            }
+
+            // 先检查设备状态
+            log.info("开始控制设备: deviceSn={}, identifier={}, value={}, productKey={}, deviceName={}", 
+                    deviceInfo.getDeviceSn(), identifier, controlValue, productKey, deviceName);
+            
+            // 使用Java IoT服务设置设备属性
+            pythonIotService.setDeviceProperty(identifier, controlValue, productKey, deviceName);
+            log.info("Java IoT设备控制成功: deviceSn={}, identifier={}, value={}, productKey={}, deviceName={}", 
+                    deviceInfo.getDeviceSn(), identifier, controlValue, productKey, deviceName);
+    }
+
+
+    
 
 
     private void closeLight(Long roomId) {

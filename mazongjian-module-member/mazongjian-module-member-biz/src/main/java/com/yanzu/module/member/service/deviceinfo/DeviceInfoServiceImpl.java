@@ -128,11 +128,14 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
                 throw exception(DEVICE_IOT_OP_ERROR, "Sciener配置不完整，请设置sciener.clientId/clientSecret/username/password");
             }
         } else if (createReqVO.getType() != null && createReqVO.getType().intValue() == 14) {
-            // 电控：保存 productKey + deviceName
+            // 电控：保存 productKey + deviceName + identifier
             com.alibaba.fastjson.JSONObject obj = new com.alibaba.fastjson.JSONObject();
             obj.put("productKey", createReqVO.getDeviceSn());
             if (createReqVO.getDeviceName() != null && createReqVO.getDeviceName().length() > 0) {
                 obj.put("deviceName", createReqVO.getDeviceName());
+            }
+            if (createReqVO.getIdentifier() != null && createReqVO.getIdentifier().length() > 0) {
+                obj.put("identifier", createReqVO.getIdentifier());
             }
             data = obj.toJSONString();
         } else {

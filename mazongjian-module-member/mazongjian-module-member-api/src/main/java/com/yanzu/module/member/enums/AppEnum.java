@@ -271,6 +271,7 @@ public class AppEnum {
         QR(11),
         IR(12),
         CONTROL_3(13),
+        CONTROL_2(14),
 
 
         ;
@@ -361,6 +362,24 @@ public class AppEnum {
         DOUYIN(2),
         KUAISHOU(3),
         ;
+
+        private final Integer value;
+    }
+
+    //miniapp门店用户类型
+    @Getter
+    @AllArgsConstructor
+    public enum member_store_user_type {
+        // 普通会员 11
+        // 老板 12
+        // 管理员 13
+        // 保洁员 14
+        // 收藏用户 15
+        MEMBER(11),
+        BOSS(12),
+        ADMIN(13),
+        CLEAR(14),
+        FAVORITE(15);
 
         private final Integer value;
     }

@@ -36,6 +36,7 @@ import com.yanzu.module.member.enums.AppEnum;
 import com.yanzu.module.member.enums.AppWxPayTypeEnum;
 import com.yanzu.module.member.service.order.AppOrderService;
 import com.yanzu.module.member.service.payorder.PayOrderService;
+import com.yanzu.module.member.service.storeinfo.StoreInfoService;
 import com.yanzu.module.member.service.wx.MyWxService;
 import com.yanzu.module.member.service.wx.WorkWxService;
 import com.yanzu.module.system.api.sms.SmsCodeApi;
@@ -61,6 +62,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
@@ -515,5 +517,86 @@ public class AppUserServiceImpl implements AppUserService {
         return user;
     }
 
+    @Override
+    @Transactional
+    public void favoriteStore(Long storeId) {
+        Long userId = getLoginUserId();
+        
+        // 检查门店是否存在
+        StoreInfoDO storeInfo = storeInfoMapper.selectById(storeId);
+        if (ObjectUtils.isEmpty(storeInfo)) {
+            throw exception(STORE_NOT_EXISTS);
+        }
+        
+        // 检查是否已经收藏
+        StoreUserDO existingFavorite = storeUserMapper.getByUserIdAndStoreId(userId, storeId);
+        if (!ObjectUtils.isEmpty(existingFavorite) && existingFavorite.getType().equals(AppEnum.member_store_user_type.FAVORITE.getValue())) {
+            throw exception(STORE_ALREADY_FAVORITED);
+        }
+        
+        // 如果存在其他类型的记录，先删除
+        if (!ObjectUtils.isEmpty(existingFavorite)) {
+            storeUserMapper.deleteById(existingFavorite.getId());
+        }
+        
+        // 创建收藏记录
+        StoreUserDO favoriteStore = StoreUserDO.builder()
+                .userId(userId)
+                .storeId(storeId)
+                .type(AppEnum.member_store_user_type.FAVORITE.getValue())
+                .balance(BigDecimal.ZERO)
+                .giftBalance(BigDecimal.ZERO)
+                .status(1)
+                .build();
+        
+        storeUserMapper.insert(favoriteStore);
+    }
+
+    @Override
+    @Transactional
+    public void unfavoriteStore(Long storeId) {
+        Long userId = getLoginUserId();
+        
+        // 查找收藏记录
+        StoreUserDO favoriteStore = storeUserMapper.getByUserIdAndStoreId(userId, storeId);
+        if (ObjectUtils.isEmpty(favoriteStore) || !favoriteStore.getType().equals(AppEnum.member_store_user_type.FAVORITE.getValue())) {
+            throw exception(STORE_NOT_FAVORITED);
+        }
+        
+        // 删除收藏记录
+        storeUserMapper.deleteById(favoriteStore.getId());
+    }
+
+    @Override
+    public List<AppFavoriteStoreRespVO> getFavoriteStores() {
+        Long userId = getLoginUserId();
+        
+        // 获取用户收藏的门店ID列表
+        List<StoreUserDO> favoriteStores = storeUserMapper.getByUserIdAndType(userId, AppEnum.member_store_user_type.FAVORITE.getValue());
+        
+        if (ObjectUtils.isEmpty(favoriteStores)) {
+            return new ArrayList<>();
+        }
+        
+        // 获取门店详细信息
+        List<Long> storeIds = favoriteStores.stream()
+                .map(StoreUserDO::getStoreId)
+                .collect(Collectors.toList());
+        
+        List<StoreInfoDO> storeInfos = storeInfoMapper.selectBatchIds(storeIds);
+        
+        // 构建响应数据
+        return storeInfos.stream()
+                .map(store -> {
+                    AppFavoriteStoreRespVO respVO = new AppFavoriteStoreRespVO();
+                    respVO.setStoreId(store.getStoreId());
+                    respVO.setStoreName(store.getStoreName());
+                    respVO.setAddress(store.getAddress());
+                    respVO.setStatus(store.getStatus());
+                    respVO.setCreateTime(store.getCreateTime());
+                    return respVO;
+                })
+                .collect(Collectors.toList());
+    }
 
 }

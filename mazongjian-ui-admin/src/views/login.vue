@@ -85,7 +85,7 @@
 
     <!-- footer -->
     <div class="footer">
-      Copyright © 2023 四川彦祖科技有限公司 All Rights Reserved.
+      Copyright © 2025 北北棋台荟 All Rights Reserved.
     </div>
   </div>
 </template>
@@ -125,7 +125,7 @@ export default {
         password: "",
         captchaVerification: "",
         mobile: "",
-        mobileCode: "", 
+        mobileCode: "",
         rememberMe: true,
         tenantName: "",
       },

@@ -131,4 +131,25 @@ public interface AppUserService {
     BigDecimal getGiftBalance(Long storeId);
 
     AppStoreBalanceRespVO getStoreBalance(Long storeId);
+
+    /**
+     * 收藏门店
+     *
+     * @param storeId 门店ID
+     */
+    void favoriteStore(Long storeId);
+
+    /**
+     * 取消收藏门店
+     *
+     * @param storeId 门店ID
+     */
+    void unfavoriteStore(Long storeId);
+
+    /**
+     * 获取用户收藏的门店列表
+     *
+     * @return 收藏的门店列表
+     */
+    List<AppFavoriteStoreRespVO> getFavoriteStores();
 }

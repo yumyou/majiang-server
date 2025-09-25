@@ -22,6 +22,8 @@
                     select="getDiscountRules"/>
         <collection property="freeRoomNum" column="store_id" ofType="Long"
                     select="getFreeRoomNum"/>
+        <collection property="totalRoomNum" column="store_id" ofType="Long"
+                    select="getTotalRoomNum"/>
         <collection property="subscribeTime" column="store_id" ofType="String"
                     select="getSubscribeTime"/>
     </resultMap>
@@ -57,6 +59,12 @@
         where deleted = 0
         and store_id = #{store_id}
         and status = 1
+    </select>
+    <select id="getTotalRoomNum" resultType="Long">
+        select count(1)
+        from member_room_info
+        where deleted = 0
+        and store_id = #{store_id}
     </select>
     <select id="getSubscribeTime" resultType="java.lang.String">
         select create_time AS subscribeTime

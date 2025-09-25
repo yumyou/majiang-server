@@ -119,6 +119,12 @@ public interface ErrorCodeConstants {
     ErrorCode ORDER_RENEW_TIME_ERROR = new ErrorCode(1004004211, "订单续费时间异常，请重新选择时间提交！");
 
     ErrorCode STORE_WX_PAY_CONFIG_NOT_FOUND = new ErrorCode(1004004999, "该门店暂不支持微信支付！");
+    
+    // ========== 收藏门店相关 1004004300 ==========
+    ErrorCode STORE_NOT_EXISTS = new ErrorCode(1004004300, "门店不存在");
+    ErrorCode STORE_ALREADY_FAVORITED = new ErrorCode(1004004301, "门店已收藏，请勿重复收藏");
+    ErrorCode STORE_NOT_FAVORITED = new ErrorCode(1004004302, "门店未收藏，无法取消收藏");
+    
     ErrorCode DATA_NOT_EXISTS = new ErrorCode(1004005000, "数据不存在");
     ErrorCode DATA_EXISTS_ERROR = new ErrorCode(1004005001, "数据已存在，请不要重复保存！");
     ErrorCode OPRATION_ERROR = new ErrorCode(1004005002, "非法操作");

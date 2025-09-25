@@ -801,11 +801,14 @@ public class StoreInfoServiceImpl implements StoreInfoService {
                 throw exception(DEVICE_IOT_OP_ERROR, "Sciener配置不完整，请设置sciener.clientId/clientSecret/username/password");
             }
         } else if (reqVO.getDeviceType() != null && reqVO.getDeviceType().intValue() == 14) {
-            // 电控：将 deviceSn 与 deviceName 组成对象存入 data
+            // 电控：将 deviceSn、deviceName 和 identifier 组成对象存入 data
             JSONObject obj = new JSONObject();
             obj.putOnce("productKey", reqVO.getDeviceSn());
             if (StringUtils.hasText(reqVO.getDeviceName())) {
                 obj.putOnce("deviceName", reqVO.getDeviceName());
+            }
+            if (StringUtils.hasText(reqVO.getIdentifier())) {
+                obj.putOnce("identifier", reqVO.getIdentifier());
             }
             data = obj.toString();
         }

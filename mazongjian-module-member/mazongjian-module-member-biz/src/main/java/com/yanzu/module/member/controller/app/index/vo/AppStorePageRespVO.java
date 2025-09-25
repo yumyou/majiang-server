@@ -59,6 +59,9 @@ public class AppStorePageRespVO {
     @Schema(description = "空闲房间数量")
     private Long freeRoomNum;
 
+    @Schema(description = "总房间数量")
+    private Long totalRoomNum;
+
     @Schema(description = "预约时间")
     private String subscribeTime;
 }

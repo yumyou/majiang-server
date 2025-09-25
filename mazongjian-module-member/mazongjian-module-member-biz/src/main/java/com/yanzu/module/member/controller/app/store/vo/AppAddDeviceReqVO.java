@@ -2,7 +2,6 @@ package com.yanzu.module.member.controller.app.store.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
-import org.springframework.security.core.SpringSecurityCoreVersion;
 
 import javax.validation.constraints.NotNull;
 
@@ -30,5 +29,7 @@ public class AppAddDeviceReqVO {
     @Schema(description = "设备名称")
     private String deviceName;
 
+    @Schema(description = "线路标识")
+    private String identifier;
 
 }

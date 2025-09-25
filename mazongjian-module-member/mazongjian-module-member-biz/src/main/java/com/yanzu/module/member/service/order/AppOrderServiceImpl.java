@@ -41,6 +41,8 @@ import com.yanzu.module.member.dal.mysql.storeuser.StoreUserMapper;
 import com.yanzu.module.member.dal.mysql.user.AppUserMapper;
 import com.yanzu.module.member.dal.mysql.user.MemberUserMapper;
 import com.yanzu.module.member.dal.mysql.usermoneybill.UserMoneyBillMapper;
+import com.yanzu.module.member.dal.mysql.deviceinfo.DeviceInfoMapper;
+import com.yanzu.module.member.dal.dataobject.deviceinfo.DeviceInfoDO;
 import com.yanzu.module.member.enums.AppEnum;
 import com.yanzu.module.member.enums.AppWxPayTypeEnum;
 import com.yanzu.module.member.service.device.DeviceService;
@@ -69,7 +71,7 @@ import org.springframework.transaction.support.DefaultTransactionDefinition;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
-
+import com.yanzu.module.member.service.iot.PythonIotService;
 import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.time.*;
@@ -133,6 +135,10 @@ public class AppOrderServiceImpl implements AppOrderService {
     @Resource
     private DouyinService douyinService;
 
+
+    @Resource
+    private PythonIotService pythonIotService;
+
     @Resource
     private PayOrderMapper payOrderMapper;
     @Resource
@@ -168,6 +174,9 @@ public class AppOrderServiceImpl implements AppOrderService {
 
     @Resource
     private StoreMeituanInfoMapper storeMeituanInfoMapper;
+
+    @Resource
+    private DeviceInfoMapper deviceInfoMapper;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -878,6 +887,67 @@ public class AppOrderServiceImpl implements AppOrderService {
         orderInfoDO.setUserId(reqVO.getUserId());
         orderInfoDO.setStartTime(reqVO.getStartTime());
         orderInfoDO.setEndTime(reqVO.getEndTime());
+
+        // 通过roomId获取type为14的设备信息
+        List<DeviceInfoDO> deviceInfoList = deviceInfoMapper.getByRoomIdAndType(reqVO.getRoomId(), new Integer[]{14});
+        if (!CollectionUtils.isAnyEmpty(deviceInfoList)) {
+            DeviceInfoDO deviceInfo = deviceInfoList.get(0); // 获取第一个type为14的设备
+            log.info("找到type为14的设备: deviceSn={}, roomId={}", deviceInfo.getDeviceSn(), reqVO.getRoomId());
+            
+            // 解析设备数据获取productKey和deviceName
+            String productKey = null;
+            String deviceName = null;
+            if (!ObjectUtils.isEmpty(deviceInfo.getDeviceData())) {
+                try {
+                    com.alibaba.fastjson.JSONObject deviceDataJson = com.alibaba.fastjson.JSONObject.parseObject(deviceInfo.getDeviceData());
+                    productKey = deviceDataJson.getString("productKey");
+                    deviceName = deviceDataJson.getString("deviceName");
+                } catch (Exception e) {
+                    log.warn("解析设备数据失败: {}", e.getMessage());
+                }
+            }
+            
+            if (!ObjectUtils.isEmpty(productKey) && !ObjectUtils.isEmpty(deviceName)) {
+                // 计算YRSFSJ：将开始时间转换为MMddHHmm格式
+                java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat("yyyy/MM/dd HH:mm");
+                java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("MMddHHmm");
+                String yrsfsj = outputFormat.format(reqVO.getStartTime());
+                
+                // 计算YRSFDK：结束时间减去开始时间的分钟数
+                long durationMinutes = (reqVO.getEndTime().getTime() - reqVO.getStartTime().getTime()) / (1000 * 60);
+                
+                // 计算YRSFKG：从identifier中提取数字
+                int yrsfkg = 1; // 默认值
+                if (!ObjectUtils.isEmpty(deviceInfo.getDeviceData())) {
+                    try {
+                        com.alibaba.fastjson.JSONObject deviceDataJson = com.alibaba.fastjson.JSONObject.parseObject(deviceInfo.getDeviceData());
+                        String identifier = deviceDataJson.getString("identifier");
+                        if (!ObjectUtils.isEmpty(identifier)) {
+                            // 提取identifier中的数字，支持1位和2位数字
+                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\d+$");
+                            java.util.regex.Matcher matcher = pattern.matcher(identifier);
+                            if (matcher.find()) {
+                                yrsfkg = Integer.parseInt(matcher.group());
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("解析identifier失败: {}", e.getMessage());
+                    }
+                }
+                
+                String value = String.format("{\"YRSFSN\": 1, \"YRSFSJ\": %s, \"YRSFDK\": %d, \"YRSFKG\": %d, \"YRSFIDX\": 1}", 
+                        yrsfsj, durationMinutes, yrsfkg);
+                
+                // 使用Java IoT服务设置设备属性
+                pythonIotService.setDeviceProperty("ZDSJDS", value, productKey, deviceName);
+                log.info("Java IoT设备控制成功: deviceSn={}, productKey={}, deviceName={}, value={}", 
+                        deviceInfo.getDeviceSn(), productKey, deviceName, value);
+            } else {
+                log.warn("设备数据中缺少productKey或deviceName: deviceSn={}", deviceInfo.getDeviceSn());
+            }
+        } else {
+            log.info("房间{}中未找到type为14的设备", reqVO.getRoomId());
+        }
         //处理加时券
         if (!ObjectUtils.isEmpty(couponInfoDO) && couponInfoDO.getType().compareTo(AppEnum.coupon_type.JIASHI.getValue()) == 0) {
             orderInfoDO.setEndTime(new Date(orderInfoDO.getEndTime().getTime() + 1000 * 60 * 60 * couponInfoDO.getPrice().intValue()));

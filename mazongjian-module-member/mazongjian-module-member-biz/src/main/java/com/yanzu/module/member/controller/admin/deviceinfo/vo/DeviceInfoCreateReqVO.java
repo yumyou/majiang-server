@@ -34,4 +34,7 @@ public class DeviceInfoCreateReqVO extends DeviceInfoBaseVO {
     @Schema(description = "设备名称，仅type=14电控时使用")
     private String deviceName;
 
+    @Schema(description = "线路标识，仅type=14电控时使用")
+    private String identifier;
+
 }

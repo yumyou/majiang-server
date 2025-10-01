@@ -175,22 +175,22 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
         //只能操作自己的设备
         if (!ObjectUtils.isEmpty(deviceInfoDO) && deviceInfoDO.getCreator().equals(String.valueOf(getLoginUserId()))) {
             // 与 app 端一致：仅对非门锁/电控尝试物联网解绑；失败记录日志并忽略
-            boolean needIotUnbind = deviceInfoDO.getType() != null
-                    && deviceInfoDO.getType().intValue() != 5
-                    && deviceInfoDO.getType().intValue() != 14;
-            if (needIotUnbind) {
-                try {
-                    if (deviceInfoDO.getShare()) {
-                        if (deviceInfoMapper.countBySN(deviceInfoDO.getDeviceSn()) == 1) {
-                            iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
-                        }
-                    } else {
-                        iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
-                    }
-                } catch (Exception ex) {
-                    log.warn("[Admin] 设备解绑失败，忽略继续删除。sn:{} err:{}", deviceInfoDO.getDeviceSn(), ex.getMessage());
-                }
-            }
+            // boolean needIotUnbind = deviceInfoDO.getType() != null
+            //         && deviceInfoDO.getType().intValue() != 5
+            //         && deviceInfoDO.getType().intValue() != 14;
+            // if (needIotUnbind) {
+            //     try {
+            //         if (deviceInfoDO.getShare()) {
+            //             if (deviceInfoMapper.countBySN(deviceInfoDO.getDeviceSn()) == 1) {
+            //                 iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+            //             }
+            //         } else {
+            //             iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+            //         }
+            //     } catch (Exception ex) {
+            //         log.warn("[Admin] 设备解绑失败，忽略继续删除。sn:{} err:{}", deviceInfoDO.getDeviceSn(), ex.getMessage());
+            //     }
+            // }
             // 删除
             deviceInfoMapper.deleteById(id);
         }

@@ -74,11 +74,14 @@ public class MyWxService {
         } else {
             //非服务商模式
             payConfig.setAppId(miniappConfigVO.getMiniappId());
-            payConfig.setSubAppId(miniappConfigVO.getMiniappId());
+            // 普通商户模式不需要设置 SubAppId 和 SubMchId
             payConfig.setMchId(config.getMchId());//商户号
             payConfig.setMchKey(config.getMchKey());//v2秘钥
             // weixin-pay-java 无法设置内容，只允许读取文件，所以这里要创建临时文件来解决
             payConfig.setKeyPath(FileUtils.createTempFile(Base64.decode(config.getP12())).getPath());//证书文件
+            // 确保普通商户模式不设置子商户相关参数
+            payConfig.setSubAppId(null);
+            payConfig.setSubMchId(null);
         }
         payConfig.setTradeType("JSAPI");
         payConfig.setNotifyUrl(returnUrl);

@@ -24,6 +24,7 @@ import com.yanzu.module.member.dal.dataobject.storeinfo.StoreInfoDO;
 import com.yanzu.module.member.dal.dataobject.storeuser.StoreUserDO;
 import com.yanzu.module.member.dal.dataobject.user.MemberUserDO;
 import com.yanzu.module.member.dal.dataobject.usermoneybill.UserMoneyBillDO;
+import com.yanzu.module.member.dal.dataobject.userfavorite.UserFavoriteDO;
 import com.yanzu.module.member.dal.mysql.couponinfo.CouponInfoMapper;
 import com.yanzu.module.member.dal.mysql.discountrules.DiscountRulesMapper;
 import com.yanzu.module.member.dal.mysql.franchiseinfo.FranchiseInfoMapper;
@@ -32,6 +33,7 @@ import com.yanzu.module.member.dal.mysql.storeinfo.StoreInfoMapper;
 import com.yanzu.module.member.dal.mysql.storeuser.StoreUserMapper;
 import com.yanzu.module.member.dal.mysql.user.MemberUserMapper;
 import com.yanzu.module.member.dal.mysql.usermoneybill.UserMoneyBillMapper;
+import com.yanzu.module.member.dal.mysql.userfavorite.UserFavoriteMapper;
 import com.yanzu.module.member.enums.AppEnum;
 import com.yanzu.module.member.enums.AppWxPayTypeEnum;
 import com.yanzu.module.member.service.order.AppOrderService;
@@ -141,6 +143,9 @@ public class AppUserServiceImpl implements AppUserService {
 
     @Resource
     private AppOrderService appOrderService;
+
+    @Resource
+    private UserFavoriteMapper userFavoriteMapper;
 
 
     @Override
@@ -255,6 +260,9 @@ public class AppUserServiceImpl implements AppUserService {
     @Override
     public AppUserInfoRespVO getUserInfo(Long loginUserId) {
         MemberUserDO memberUserDO = memberUserMapper.selectById(loginUserId);
+        if (memberUserDO == null) {
+            throw exception(USER_NOT_EXISTS);
+        }
         AppUserInfoRespVO respVO = UserConvert.INSTANCE.convert(memberUserDO);
         //查询余额
         StoreUserDO storeUserDO = storeUserMapper.getTotalBalance(loginUserId);
@@ -262,8 +270,9 @@ public class AppUserServiceImpl implements AppUserService {
             respVO.setBalance(BigDecimal.ZERO);
             respVO.setGiftBalance(BigDecimal.ZERO);
         } else {
-            respVO.setBalance(storeUserDO.getBalance());
-            respVO.setGiftBalance(storeUserDO.getGiftBalance());
+            // 防止空指针异常，对null值进行处理
+            respVO.setBalance(storeUserDO.getBalance() != null ? storeUserDO.getBalance() : BigDecimal.ZERO);
+            respVO.setGiftBalance(storeUserDO.getGiftBalance() != null ? storeUserDO.getGiftBalance() : BigDecimal.ZERO);
         }
         //查询可用优惠券数量
         respVO.setCouponCount(couponInfoMapper.countByUserId(loginUserId));
@@ -528,28 +537,26 @@ public class AppUserServiceImpl implements AppUserService {
             throw exception(STORE_NOT_EXISTS);
         }
         
-        // 检查是否已经收藏
-        StoreUserDO existingFavorite = storeUserMapper.getByUserIdAndStoreId(userId, storeId);
-        if (!ObjectUtils.isEmpty(existingFavorite) && existingFavorite.getType().equals(AppEnum.member_store_user_type.FAVORITE.getValue())) {
+        // 检查是否已经收藏（未删除的记录）
+        UserFavoriteDO existingFavorite = userFavoriteMapper.selectByUserIdAndStoreId(userId, storeId);
+        if (!ObjectUtils.isEmpty(existingFavorite)) {
             throw exception(STORE_ALREADY_FAVORITED);
         }
         
-        // 如果存在其他类型的记录，先删除
-        if (!ObjectUtils.isEmpty(existingFavorite)) {
-            storeUserMapper.deleteById(existingFavorite.getId());
+        // 检查是否存在已删除的收藏记录
+        UserFavoriteDO deletedFavorite = userFavoriteMapper.selectDeletedByUserIdAndStoreId(userId, storeId);
+        if (!ObjectUtils.isEmpty(deletedFavorite)) {
+            // 恢复已删除的记录
+            userFavoriteMapper.restoreById(deletedFavorite.getId());
+        } else {
+            // 创建新的收藏记录
+            UserFavoriteDO favoriteStore = UserFavoriteDO.builder()
+                    .userId(userId)
+                    .storeId(storeId)
+                    .build();
+            
+            userFavoriteMapper.insert(favoriteStore);
         }
-        
-        // 创建收藏记录
-        StoreUserDO favoriteStore = StoreUserDO.builder()
-                .userId(userId)
-                .storeId(storeId)
-                .type(AppEnum.member_store_user_type.FAVORITE.getValue())
-                .balance(BigDecimal.ZERO)
-                .giftBalance(BigDecimal.ZERO)
-                .status(1)
-                .build();
-        
-        storeUserMapper.insert(favoriteStore);
     }
 
     @Override
@@ -558,13 +565,13 @@ public class AppUserServiceImpl implements AppUserService {
         Long userId = getLoginUserId();
         
         // 查找收藏记录
-        StoreUserDO favoriteStore = storeUserMapper.getByUserIdAndStoreId(userId, storeId);
-        if (ObjectUtils.isEmpty(favoriteStore) || !favoriteStore.getType().equals(AppEnum.member_store_user_type.FAVORITE.getValue())) {
+        UserFavoriteDO favoriteStore = userFavoriteMapper.selectByUserIdAndStoreId(userId, storeId);
+        if (ObjectUtils.isEmpty(favoriteStore)) {
             throw exception(STORE_NOT_FAVORITED);
         }
         
         // 删除收藏记录
-        storeUserMapper.deleteById(favoriteStore.getId());
+        userFavoriteMapper.deleteById(favoriteStore.getId());
     }
 
     @Override
@@ -572,17 +579,13 @@ public class AppUserServiceImpl implements AppUserService {
         Long userId = getLoginUserId();
         
         // 获取用户收藏的门店ID列表
-        List<StoreUserDO> favoriteStores = storeUserMapper.getByUserIdAndType(userId, AppEnum.member_store_user_type.FAVORITE.getValue());
+        List<Long> storeIds = userFavoriteMapper.selectStoreIdsByUserId(userId);
         
-        if (ObjectUtils.isEmpty(favoriteStores)) {
+        if (ObjectUtils.isEmpty(storeIds)) {
             return new ArrayList<>();
         }
         
         // 获取门店详细信息
-        List<Long> storeIds = favoriteStores.stream()
-                .map(StoreUserDO::getStoreId)
-                .collect(Collectors.toList());
-        
         List<StoreInfoDO> storeInfos = storeInfoMapper.selectBatchIds(storeIds);
         
         // 构建响应数据

@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.Operation;
 
-import javax.validation.constraints.*;
 import javax.validation.*;
 import javax.servlet.http.*;
 import java.util.*;
@@ -73,6 +72,15 @@ public class DeviceUseInfoController {
         // 导出 Excel
         List<DeviceUseInfoExcelVO> datas = DeviceUseInfoConvert.INSTANCE.convertList02(list);
         ExcelUtils.write(response, "设备使用记录.xls", "数据", DeviceUseInfoExcelVO.class, datas);
+    }
+
+    @DeleteMapping("/delete")
+    @Operation(summary = "删除设备使用记录")
+    @Parameter(name = "id", description = "编号", required = true)
+    @PreAuthorize("@ss.hasPermission('member:device-use-info:delete')")
+    public CommonResult<Boolean> deleteDeviceUseInfo(@RequestParam("id") Long id) {
+        deviceUseInfoService.deleteDeviceUseInfo(id);
+        return success(true);
     }
 
 }

@@ -100,6 +100,7 @@ public interface ErrorCodeConstants {
     ErrorCode DEVICE_DATA_EXISTS_ERROR = new ErrorCode(1004004098, "该设备已存在，请勿重复添加！");
     ErrorCode ROOM_BAN_TIME_ERROR = new ErrorCode(1004004099, "房间禁用时间请填写完整！");
     ErrorCode DEVICE_ADD_MAX_NUM_ERROR = new ErrorCode(1004004100, "此类型设备每个场地只允许添加1个！");
+    ErrorCode DEVICE_DELETE_PERMISSION_ERROR = new ErrorCode(1004004102, "无权限删除该设备，只能删除自己创建的设备！");
     ErrorCode STORE_RENEW_TIME_ERROR = new ErrorCode(1004004101, "不允许超过提前1个月续费！");
 
     ErrorCode PKG_BUY_MAX_NUM_ERROR = new ErrorCode(1004004200, "超过购买该套餐的最大数量限制！");
@@ -124,6 +125,9 @@ public interface ErrorCodeConstants {
     ErrorCode STORE_NOT_EXISTS = new ErrorCode(1004004300, "门店不存在");
     ErrorCode STORE_ALREADY_FAVORITED = new ErrorCode(1004004301, "门店已收藏，请勿重复收藏");
     ErrorCode STORE_NOT_FAVORITED = new ErrorCode(1004004302, "门店未收藏，无法取消收藏");
+    
+    // ========== 签到相关 1004004400 ==========
+    ErrorCode USER_SIGNIN_ALREADY = new ErrorCode(1004004400, "今日已签到，请勿重复签到");
     
     ErrorCode DATA_NOT_EXISTS = new ErrorCode(1004005000, "数据不存在");
     ErrorCode DATA_EXISTS_ERROR = new ErrorCode(1004005001, "数据已存在，请不要重复保存！");

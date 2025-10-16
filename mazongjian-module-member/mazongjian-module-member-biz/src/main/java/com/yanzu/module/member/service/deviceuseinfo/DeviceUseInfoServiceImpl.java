@@ -50,4 +50,9 @@ public class DeviceUseInfoServiceImpl implements DeviceUseInfoService {
         return deviceUseInfoMapper.selectList(exportReqVO);
     }
 
+    @Override
+    public void deleteDeviceUseInfo(Long id) {
+        deviceUseInfoMapper.deleteById(id);
+    }
+
 }

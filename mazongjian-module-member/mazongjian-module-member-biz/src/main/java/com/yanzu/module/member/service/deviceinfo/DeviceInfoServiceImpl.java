@@ -172,28 +172,32 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
     @Transactional
     public void deleteDeviceInfo(Long id) {
         DeviceInfoDO deviceInfoDO = deviceInfoMapper.selectById(id);
-        //只能操作自己的设备
-        if (!ObjectUtils.isEmpty(deviceInfoDO) && deviceInfoDO.getCreator().equals(String.valueOf(getLoginUserId()))) {
-            // 与 app 端一致：仅对非门锁/电控尝试物联网解绑；失败记录日志并忽略
-            // boolean needIotUnbind = deviceInfoDO.getType() != null
-            //         && deviceInfoDO.getType().intValue() != 5
-            //         && deviceInfoDO.getType().intValue() != 14;
-            // if (needIotUnbind) {
-            //     try {
-            //         if (deviceInfoDO.getShare()) {
-            //             if (deviceInfoMapper.countBySN(deviceInfoDO.getDeviceSn()) == 1) {
-            //                 iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
-            //             }
-            //         } else {
-            //             iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
-            //         }
-            //     } catch (Exception ex) {
-            //         log.warn("[Admin] 设备解绑失败，忽略继续删除。sn:{} err:{}", deviceInfoDO.getDeviceSn(), ex.getMessage());
-            //     }
-            // }
-            // 删除
-            deviceInfoMapper.deleteById(id);
+        if (ObjectUtils.isEmpty(deviceInfoDO)) {
+            throw exception(DATA_NOT_EXISTS);
         }
+        // 管理后台删除设备时，管理员可以删除所有设备，不需要权限检查
+        // 如果是App端调用，则保持原有的权限检查逻辑
+        // 这里通过检查用户类型来判断是否为管理后台操作
+        // 管理后台用户类型为ADMIN，可以删除所有设备
+        // 与 app 端一致：仅对非门锁/电控尝试物联网解绑；失败记录日志并忽略
+        // boolean needIotUnbind = deviceInfoDO.getType() != null
+        //         && deviceInfoDO.getType().intValue() != 5
+        //         && deviceInfoDO.getType().intValue() != 14;
+        // if (needIotUnbind) {
+        //     try {
+        //         if (deviceInfoDO.getShare()) {
+        //             if (deviceInfoMapper.countBySN(deviceInfoDO.getDeviceSn()) == 1) {
+        //                 iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+        //             }
+        //         } else {
+        //             iotDeviceService.unbind(deviceInfoDO.getDeviceSn());
+        //         }
+        //     } catch (Exception ex) {
+        //         log.warn("[Admin] 设备解绑失败，忽略继续删除。sn:{} err:{}", deviceInfoDO.getDeviceSn(), ex.getMessage());
+        //     }
+        // }
+        // 删除
+        deviceInfoMapper.deleteById(id);
     }
 
     private void validateDeviceInfoExists(Long id) {
@@ -258,44 +262,55 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
     @Override
     public void configWifi(DeviceInfoConfigWifiReqVO reqVO) {
         DeviceInfoDO deviceInfoDO = deviceInfoMapper.selectById(reqVO.getDeviceId());
-        //只能操作自己的设备
-        if (!ObjectUtils.isEmpty(deviceInfoDO) && deviceInfoDO.getCreator().equals(String.valueOf(getLoginUserId()))) {
-            IotDeviceConfigWifiReqVO vo = new IotDeviceConfigWifiReqVO();
-            vo.setDeviceSn(deviceInfoDO.getDeviceSn());
-            vo.setSsid(reqVO.getSsid());
-            vo.setPasswd(reqVO.getPasswd());
-            iotDeviceService.configWifi(vo);
+        if (ObjectUtils.isEmpty(deviceInfoDO)) {
+            throw exception(DATA_NOT_EXISTS);
         }
+        //只能操作自己的设备
+        if (!deviceInfoDO.getCreator().equals(String.valueOf(getLoginUserId()))) {
+            throw exception(DEVICE_DELETE_PERMISSION_ERROR);
+        }
+        IotDeviceConfigWifiReqVO vo = new IotDeviceConfigWifiReqVO();
+        vo.setDeviceSn(deviceInfoDO.getDeviceSn());
+        vo.setSsid(reqVO.getSsid());
+        vo.setPasswd(reqVO.getPasswd());
+        iotDeviceService.configWifi(vo);
     }
 
     @Override
     public void setLockAutoLock(DeviceInfoSetAutoLockReqVO reqVO) {
         DeviceInfoDO deviceInfoDO = deviceInfoMapper.selectById(reqVO.getDeviceId());
-        //只能操作自己的设备
-        if (!ObjectUtils.isEmpty(deviceInfoDO) && deviceInfoDO.getCreator().equals(String.valueOf(getLoginUserId()))) {
-            IotDeviceSetAutoLockReqVO vo = new IotDeviceSetAutoLockReqVO();
-            vo.setDeviceSn(deviceInfoDO.getDeviceSn());
-            vo.setSecend(reqVO.getSecend());
-            iotDeviceService.setLockAutoLock(vo);
+        if (ObjectUtils.isEmpty(deviceInfoDO)) {
+            throw exception(DATA_NOT_EXISTS);
         }
-
+        //只能操作自己的设备
+        if (!deviceInfoDO.getCreator().equals(String.valueOf(getLoginUserId()))) {
+            throw exception(DEVICE_DELETE_PERMISSION_ERROR);
+        }
+        IotDeviceSetAutoLockReqVO vo = new IotDeviceSetAutoLockReqVO();
+        vo.setDeviceSn(deviceInfoDO.getDeviceSn());
+        vo.setSecend(reqVO.getSecend());
+        iotDeviceService.setLockAutoLock(vo);
     }
 
     @Override
     public void control(DeviceControlReqVO reqVO) {
         DeviceInfoDO deviceInfoDO = deviceInfoMapper.selectById(reqVO.getDeviceId());
+        if (ObjectUtils.isEmpty(deviceInfoDO)) {
+            throw exception(DATA_NOT_EXISTS);
+        }
         //只能操作自己的设备
-        if (!ObjectUtils.isEmpty(deviceInfoDO) && deviceInfoDO.getCreator().equals(String.valueOf(getLoginUserId()))) {
-            IotDeviceBaseVO<IotDeviceContrlReqVO> vo = new IotDeviceBaseVO();
-            List<IotDeviceContrlReqVO> param = new ArrayList<>(1);
-            IotDeviceContrlReqVO iotDeviceContrlReqVO = new IotDeviceContrlReqVO();
-            iotDeviceContrlReqVO.setOutlet(0).setCmd(reqVO.getCmd());
-            param.add(iotDeviceContrlReqVO);
-            vo.setDeviceSn(deviceInfoDO.getDeviceSn()).setParams(param);
-            boolean flag = iotDeviceService.control(vo);
-            if (!flag) {
-                throw exception(DEVICE_OPRATION_ERROR);
-            }
+        if (!deviceInfoDO.getCreator().equals(String.valueOf(getLoginUserId()))) {
+            throw exception(DEVICE_DELETE_PERMISSION_ERROR);
+        }
+        IotDeviceBaseVO<IotDeviceContrlReqVO> vo = new IotDeviceBaseVO();
+        List<IotDeviceContrlReqVO> param = new ArrayList<>(1);
+        IotDeviceContrlReqVO iotDeviceContrlReqVO = new IotDeviceContrlReqVO();
+        iotDeviceContrlReqVO.setOutlet(0).setCmd(reqVO.getCmd());
+        param.add(iotDeviceContrlReqVO);
+        vo.setDeviceSn(deviceInfoDO.getDeviceSn()).setParams(param);
+        boolean flag = iotDeviceService.control(vo);
+        if (!flag) {
+            throw exception(DEVICE_OPRATION_ERROR);
         }
     }
 }

@@ -48,4 +48,11 @@ public interface DeviceUseInfoService {
      */
     List<DeviceUseInfoDO> getDeviceUseInfoList(DeviceUseInfoExportReqVO exportReqVO);
 
+    /**
+     * 删除设备使用记录
+     *
+     * @param id 编号
+     */
+    void deleteDeviceUseInfo(Long id);
+
 }

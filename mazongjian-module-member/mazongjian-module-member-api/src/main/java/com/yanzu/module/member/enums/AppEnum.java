@@ -374,12 +374,10 @@ public class AppEnum {
         // 老板 12
         // 管理员 13
         // 保洁员 14
-        // 收藏用户 15
         MEMBER(11),
         BOSS(12),
         ADMIN(13),
-        CLEAR(14),
-        FAVORITE(15);
+        CLEAR(14);
 
         private final Integer value;
     }

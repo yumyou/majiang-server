@@ -597,6 +597,7 @@ public class AppUserServiceImpl implements AppUserService {
                     respVO.setAddress(store.getAddress());
                     respVO.setStatus(store.getStatus());
                     respVO.setCreateTime(store.getCreateTime());
+                    respVO.setHeadImg(store.getHeadImg());
                     return respVO;
                 })
                 .collect(Collectors.toList());

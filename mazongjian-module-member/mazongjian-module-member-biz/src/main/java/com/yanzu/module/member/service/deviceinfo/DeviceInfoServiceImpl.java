@@ -116,7 +116,7 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
                 if (!StringUtils.hasText(accessToken)) {
                     throw exception(DEVICE_IOT_OP_ERROR, "Sciener获取token失败:" + tokenResp);
                 }
-                String url = String.format("https://cnapi.sciener.com/v3/lock/detail?clientId=%s&accessToken=%s&lockId=%s&date=%d",
+                String url = String.format("https://cnapi.sciener.com/v3/key/get?clientId=%s&accessToken=%s&lockId=%s&date=%d",
                         scienerClientId, accessToken, createReqVO.getDeviceSn(), System.currentTimeMillis());
                 String detailResp = HttpUtil.get(url);
                 log.info("[Admin] Sciener lock detail resp: {}", detailResp);

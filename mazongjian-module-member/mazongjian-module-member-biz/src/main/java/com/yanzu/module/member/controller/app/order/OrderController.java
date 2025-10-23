@@ -63,8 +63,10 @@ public class OrderController {
         if (!ObjectUtils.isEmpty(reqVO.getPkgId())) {
             pkgInfoDO = pkgInfoMapper.selectById(reqVO.getPkgId());
         }
+        // 根据支付方式决定是否生成微信支付订单
+        boolean needWxPay = (reqVO.getPayType() == null || reqVO.getPayType() == 1);
         return success(appOrderService.preOrder(getLoginUserId(), reqVO.getPayType(), reqVO.getRoomId(), reqVO.getStartTime(), reqVO.getEndTime(),
-                couponInfoDO, pkgInfoDO, reqVO.getOrderId(), reqVO.isNightLong(), true));
+                couponInfoDO, pkgInfoDO, reqVO.getOrderId(), reqVO.isNightLong(), needWxPay));
     }
 
 

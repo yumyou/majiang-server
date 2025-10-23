@@ -24,5 +24,8 @@ public class AppFavoriteStoreRespVO {
     @Schema(description = "收藏时间")
     private LocalDateTime createTime;
 
+    @Schema(description = "门店图片", example = "https://example.com/image.jpg")
+    private String headImg;
+
 }
 

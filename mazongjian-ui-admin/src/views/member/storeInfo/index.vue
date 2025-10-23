@@ -132,18 +132,18 @@
         <el-form-item label="客服电话" prop="kefuPhone">
           <el-input v-model="form.kefuPhone" placeholder="请输入客服电话" />
         </el-form-item>
-        <el-form-item label="企业微信webhook" prop="orderWebhook">
+        <!-- <el-form-item label="企业微信webhook" prop="orderWebhook">
           <el-input v-model="form.orderWebhook" placeholder="请输入企业微信webhook地址" />
-        </el-form-item>
+        </el-form-item> -->
         <!-- <el-form-item label="组局通知webhook" prop="gameWebhook">
           <el-input v-model="form.gameWebhook" placeholder="请输入组局通知webhook地址" />
         </el-form-item> -->
-        <el-form-item label="抖音poi_id" prop="douyinPoiId">
+        <!-- <el-form-item label="抖音poi_id" prop="douyinPoiId">
           <el-input v-model="form.douyinPoiId" placeholder="请输入抖音poi_id" />
-        </el-form-item>
-        <el-form-item label="美团店铺uuid" prop="meituanOpenShopUuid">
+        </el-form-item> -->
+        <!-- <el-form-item label="美团店铺uuid" prop="meituanOpenShopUuid">
           <el-input v-model="form.meituanOpenShopUuid" placeholder="请输入美团店铺uuid" />
-        </el-form-item>
+        </el-form-item> -->
         <!--
         <el-form-item label="美团key" prop="meituanKey">
           <el-input v-model="form.meituanKey" placeholder="请输入美团key" />

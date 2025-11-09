@@ -48,6 +48,13 @@ rebel.xml
 
 application-my.yaml
 
+### Large Files ###
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
 /mazongjian-ui-admin/.env.dev
 /mazongjian-ui-admin/.env.prod
 /mazongjian-server/src/main/resources/apiclient_cert.p12
